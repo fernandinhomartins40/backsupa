@@ -21,18 +21,43 @@ jobs:
         password: ${{ secrets.VPS_PASSWORD }}
         port: 22
         script: |
-          # Diretório do projeto
-          cd /opt/backsupa
+          # Configurar diretório do projeto
+          APP_DIR="/opt/supabase-baas"
+          
+          # Criar diretório se não existir
+          mkdir -p $APP_DIR
+          cd $APP_DIR
+          
+          # Verificar se é um repositório git, se não, clonar
+          if [ ! -d ".git" ]; then
+            echo "Clonando repositório..."
+            git clone https://github.com/fernandinhomartins40/backsupa.git .
+          fi
           
           # Parar containers existentes
-          docker-compose down || true
+          docker compose down || true
           
           # Atualizar código
           git reset --hard
           git pull origin main
           
+          # Verificar se docker compose está disponível
+          if ! command -v docker compose &> /dev/null; then
+            echo "Docker Compose não encontrado. Instalando..."
+            curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
+            chmod +x /usr/local/bin/docker-compose
+            ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+          fi
+          
           # Iniciar aplicação
-          docker-compose up -d --build
+          docker compose up -d --build
           
           # Verificar status
-          docker-compose ps
+          docker compose ps
+          
+          # Verificar logs se houver erro
+          if [ $? -ne 0 ]; then
+            echo "Erro ao iniciar containers. Verificando logs..."
+            docker compose logs --tail=50
+            exit 1
+          fi
