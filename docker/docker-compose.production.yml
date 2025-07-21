@@ -135,14 +135,30 @@ services:
     ports:
       - "3000:3000"
     environment:
+      # Studio configuration
       STUDIO_PG_META_URL: http://meta:8080
       POSTGRES_PASSWORD: postgres123
       DEFAULT_ORGANIZATION_NAME: "Supabase BaaS"
       DEFAULT_PROJECT_NAME: "Production Project"
-      SUPABASE_URL: http://localhost:8000
-      SUPABASE_PUBLIC_URL: http://82.25.69.57:8000
-      NEXT_PUBLIC_ENABLE_LOGS: true
+      
+      # Supabase connection URLs
+      SUPABASE_URL: http://82.25.69.57
+      SUPABASE_PUBLIC_URL: http://82.25.69.57
+      SUPABASE_REST_URL: http://82.25.69.57/rest/v1
+      
+      # JWT tokens (example keys - replace with real ones)
+      SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlZmF1bHQiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTY0MTc2OTIwMCwiZXhwIjoxOTU3MzQxMjAwfQ.0h_VbKrOLm7t6z8eJ8S2hEoE7EYhU7L-y6rE8zGJt8c"
+      SUPABASE_SERVICE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlZmF1bHQiLCJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjQxNzY5MjAwLCJleHAiOjE5NTczNDEyMDB9.M2rOF5TuzE6J7mN5Vv7IkE5oJ-3t6B7y5D9sQ_8RtUc"
+      
+      # Next.js configuration
+      NEXT_PUBLIC_SUPABASE_URL: http://82.25.69.57
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlZmF1bHQiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTY0MTc2OTIwMCwiZXhwIjoxOTU3MzQxMjAwfQ.0h_VbKrOLm7t6z8eJ8S2hEoE7EYhU7L-y6rE8zGJt8c"
+      NEXT_PUBLIC_ENABLE_LOGS: "true"
       NEXT_ANALYTICS_BACKEND_PROVIDER: postgres
+      
+      # Additional Studio settings
+      STUDIO_PORT: 3000
+      NODE_ENV: production
     depends_on:
       master-db:
         condition: service_healthy
@@ -151,10 +167,11 @@ services:
     networks:
       - supabase_network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 30s
 
   # PostgreSQL Meta (necessário para Studio)
   meta:
