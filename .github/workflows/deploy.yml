@@ -27,8 +27,11 @@ jobs:
         port: 22
         timeout: 300s
         command_timeout: 300s
+        envs: GITHUB_TOKEN
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         script: |
-          set -e  # Exit on any error
+          # Não usar set -e no início para permitir diagnósticos
           
           echo "🚀 Iniciando deploy do Supabase BaaS..."
           
@@ -40,6 +43,24 @@ jobs:
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
           }
           
+          # Diagnosticar conectividade
+          log "🔍 Verificando conectividade..."
+          ping -c 3 github.com || log "⚠️  Ping para GitHub falhou"
+          nslookup github.com || log "⚠️  DNS lookup falhou"
+          curl -I https://github.com || log "⚠️  HTTPS para GitHub falhou"
+          
+          # Configurar Git globalmente
+          log "⚙️  Configurando Git..."
+          git config --global user.name "Deploy Bot" || true
+          git config --global user.email "deploy@github.com" || true
+          git config --global init.defaultBranch main || true
+          
+          # Certificados SSL
+          log "🔐 Atualizando certificados SSL..."
+          apt-get update -qq || true
+          apt-get install -y ca-certificates curl git || true
+          update-ca-certificates || true
+          
           log "📁 Preparando diretório: $APP_DIR"
           mkdir -p $APP_DIR
           cd $APP_DIR
@@ -47,7 +68,21 @@ jobs:
           # Verificar se é um repositório git, se não, clonar
           if [ ! -d ".git" ]; then
             log "📥 Clonando repositório..."
-            git clone https://github.com/fernandinhomartins40/backsupa.git .
+            
+            # Tentar múltiplas abordagens
+            if ! git clone https://github.com/fernandinhomartins40/backsupa.git . 2>/dev/null; then
+              log "⚠️  Clone HTTPS falhou, tentando com --depth 1..."
+              if ! git clone --depth 1 https://github.com/fernandinhomartins40/backsupa.git . 2>/dev/null; then
+                log "⚠️  Clone com depth falhou, tentando baixar via curl..."
+                curl -L https://github.com/fernandinhomartins40/backsupa/archive/main.tar.gz | tar xz --strip-components=1
+                git init .
+                git remote add origin https://github.com/fernandinhomartins40/backsupa.git
+                git add .
+                git commit -m "Initial commit from deploy"
+              fi
+            fi
+            
+            log "✅ Repositório clonado com sucesso"
           fi
           
           # Parar containers existentes
@@ -64,9 +99,42 @@ jobs:
           # Atualizar código
           log "🔄 Atualizando código..."
           git config --global --add safe.directory $APP_DIR
-          git fetch origin
-          git reset --hard origin/main
-          git clean -fd
+          
+          # Se já existe repositório, atualizar
+          if [ -d ".git" ]; then
+            # Verificar se remote origin existe
+            if ! git remote get-url origin >/dev/null 2>&1; then
+              git remote add origin https://github.com/fernandinhomartins40/backsupa.git
+            fi
+            
+            # Tentar atualizar
+            if ! git fetch origin 2>/dev/null; then
+              log "⚠️  Fetch falhou, removendo e clonando novamente..."
+              cd ..
+              rm -rf $APP_DIR
+              mkdir -p $APP_DIR
+              cd $APP_DIR
+              git clone https://github.com/fernandinhomartins40/backsupa.git . || {
+                log "❌ Clone falhou, baixando via curl..."
+                curl -L https://github.com/fernandinhomartins40/backsupa/archive/main.tar.gz | tar xz --strip-components=1
+              }
+            else
+              git reset --hard origin/main
+              git clean -fd
+            fi
+          fi
+          
+          # Verificar se o código foi baixado com sucesso
+          log "✅ Verificando se o repositório foi baixado..."
+          if [ ! -f "package.json" ] && [ ! -f "docker/docker-compose.production.yml" ]; then
+            log "❌ Repositório não foi baixado corretamente!"
+            ls -la
+            exit 1
+          fi
+          log "✅ Repositório verificado com sucesso!"
+          
+          # Ativar exit on error após download
+          set -e
           
           # Verificar dependências
           log "🔍 Verificando dependências..."
