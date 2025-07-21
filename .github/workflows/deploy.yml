@@ -138,7 +138,7 @@ jobs:
           # Verificar se containers estão rodando
           FAILED_SERVICES=""
           
-          EXPECTED_CONTAINERS="supabase_master_db supabase_control_api supabase_billing_api supabase_marketplace_api supabase_nginx"
+          EXPECTED_CONTAINERS="supabase_master_db supabase_control_api supabase_billing_api supabase_marketplace_api supabase_studio supabase_meta supabase_nginx"
           for container in $EXPECTED_CONTAINERS; do
             if docker ps --format "{{.Names}}" | grep -q "^$container$"; then
               log "✅ Container $container está rodando"
@@ -158,6 +158,23 @@ jobs:
             FAILED_SERVICES="$FAILED_SERVICES nginx-health"
           fi
           
+          # Test Studio (pode demorar mais para iniciar)
+          sleep 10
+          if curl -f http://localhost:3000 >/dev/null 2>&1; then
+            log "✅ Supabase Studio: OK"
+          else
+            log "❌ Supabase Studio: FALHOU"
+            FAILED_SERVICES="$FAILED_SERVICES studio-health"
+          fi
+          
+          # Test Meta API
+          if curl -f http://localhost:8080/health >/dev/null 2>&1; then
+            log "✅ Meta API: OK"
+          else
+            log "❌ Meta API: FALHOU"
+            FAILED_SERVICES="$FAILED_SERVICES meta-health"
+          fi
+          
           # ====================================
           # ETAPA 7: RESULTADO FINAL
           # ====================================
@@ -169,9 +186,11 @@ jobs:
           else
             log "🎉 DEPLOY CONCLUÍDO COM SUCESSO!"
             log "🌐 Aplicação disponível em:"
-            log "   - http://${{ env.VPS_HOST }} (Nginx)"
+            log "   - http://${{ env.VPS_HOST }} (Supabase Studio - Interface Principal)"
+            log "   - http://${{ env.VPS_HOST }}:3000 (Studio Direto)"
             log "   - http://${{ env.VPS_HOST }}:3001 (Control API)"
             log "   - http://${{ env.VPS_HOST }}:3002 (Billing API)"
             log "   - http://${{ env.VPS_HOST }}:3003 (Marketplace API)"
+            log "   - http://${{ env.VPS_HOST }}:8080 (Meta API)"
             log "📊 Resumo: $(docker ps --format '{{.Names}}' | wc -l) containers ativos"
           fi

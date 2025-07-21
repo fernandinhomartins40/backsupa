@@ -100,6 +100,58 @@ services:
       timeout: 10s
       retries: 3
 
+  # Supabase Studio
+  studio:
+    container_name: supabase_studio
+    image: supabase/studio:20250113-83c9420
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      STUDIO_PG_META_URL: http://meta:8080
+      POSTGRES_PASSWORD: postgres123
+      DEFAULT_ORGANIZATION_NAME: "Supabase BaaS"
+      DEFAULT_PROJECT_NAME: "Production Project"
+      SUPABASE_URL: http://localhost:8000
+      SUPABASE_PUBLIC_URL: http://82.25.69.57:8000
+      NEXT_PUBLIC_ENABLE_LOGS: true
+      NEXT_ANALYTICS_BACKEND_PROVIDER: postgres
+    depends_on:
+      - master-db
+      - meta
+    networks:
+      - supabase_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/profile"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # PostgreSQL Meta (necessário para Studio)
+  meta:
+    container_name: supabase_meta
+    image: supabase/postgres-meta:v0.84.2
+    restart: unless-stopped
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: master-db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: supabase_master
+      PG_META_DB_USER: postgres
+      PG_META_DB_PASSWORD: postgres123
+    ports:
+      - "8080:8080"
+    depends_on:
+      master-db:
+        condition: service_healthy
+    networks:
+      - supabase_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # Nginx Proxy
   nginx:
     image: nginx:alpine
@@ -114,6 +166,7 @@ services:
       - control-api
       - billing-api
       - marketplace-api
+      - studio
     networks:
       - supabase_network
     healthcheck:
