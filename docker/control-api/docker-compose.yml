@@ -1,0 +1,125 @@
+# Docker Compose para Supabase BaaS Control API
+
+version: '3.8'
+
+services:
+  control-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: supabase-control-api
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - HOST=0.0.0.0
+    env_file:
+      - .env
+    volumes:
+      # Logs persistentes
+      - ./logs:/app/logs
+      # Scripts de geração (read-only)
+      - ../generate.bash:/scripts/generate.bash:ro
+      - ../nginx-manager.sh:/scripts/nginx-manager.sh:ro
+      # Diretório de instâncias
+      - /opt/supabase-instances:/opt/supabase-instances
+      # Socket do Docker (para gerenciar containers)
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - supabase-baas
+    depends_on:
+      - redis
+      - master-db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  master-db:
+    image: postgres:15-alpine
+    container_name: supabase-master-db
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: supabase_master
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${MASTER_DB_PASSWORD:-masterpassword}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      # Dados persistentes
+      - master-db-data:/var/lib/postgresql/data
+      # Script de inicialização
+      - ../master-db-setup.sql:/docker-entrypoint-initdb.d/01-setup.sql:ro
+    networks:
+      - supabase-baas
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d supabase_master"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: supabase-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    volumes:
+      - redis-data:/data
+    networks:
+      - supabase-baas
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    command: >
+      redis-server 
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+
+  # Nginx como proxy reverso (opcional - pode usar nginx do host)
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: supabase-nginx-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Configuração do nginx
+      - ../nginx-config:/etc/nginx/conf.d
+      # Certificados SSL
+      - /etc/ssl/supabase:/etc/ssl/supabase:ro
+      # Logs
+      - nginx-logs:/var/log/nginx
+    networks:
+      - supabase-baas
+    depends_on:
+      - control-api
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  supabase-baas:
+    driver: bridge
+    name: supabase-baas
+
+volumes:
+  master-db-data:
+    driver: local
+  redis-data:
+    driver: local
+  nginx-logs:
+    driver: local

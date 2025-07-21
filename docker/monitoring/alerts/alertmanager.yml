@@ -1,0 +1,176 @@
+# Configuração do Alertmanager para Supabase Multi-Tenant
+global:
+  # Configuração SMTP (opcional)
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'alerts@yourdomain.com'
+  smtp_auth_username: ''
+  smtp_auth_password: ''
+  
+  # URLs externas
+  slack_api_url: 'https://hooks.slack.com/services/'
+  
+# Templates para mensagens
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Roteamento de alertas
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default'
+  
+  # Rotas específicas por severidade
+  routes:
+    # Alertas críticos - notificação imediata
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 10s
+      repeat_interval: 5m
+    
+    # Alertas de warning - menos urgentes
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_wait: 30s
+      repeat_interval: 1h
+    
+    # Alertas específicos do Supabase
+    - match:
+        service: supabase
+      receiver: 'supabase-alerts'
+      group_wait: 15s
+      repeat_interval: 30m
+
+# Receivers (destinos das notificações)
+receivers:
+  # Receptor padrão
+  - name: 'default'
+    webhook_configs:
+      - url: 'http://localhost:9094/webhook'
+        send_resolved: true
+
+  # Alertas críticos
+  - name: 'critical-alerts'
+    # Slack para alertas críticos
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#supabase-alerts'
+        username: 'Supabase Monitor'
+        icon_emoji: ':fire:'
+        title: '🚨 ALERTA CRÍTICO - Supabase BaaS'
+        text: >-
+          {{ range .Alerts }}
+          *Alerta:* {{ .Annotations.summary }}
+          *Instância:* {{ .Labels.instance_id | default "N/A" }}
+          *Projeto:* {{ .Labels.project_name | default "N/A" }}
+          *Severidade:* {{ .Labels.severity }}
+          *Descrição:* {{ .Annotations.description }}
+          {{ if .Annotations.runbook_url }}*Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ end }}
+        send_resolved: true
+    
+    # Email para alertas críticos
+    email_configs:
+      - to: '${ADMIN_EMAIL}'
+        subject: '🚨 CRÍTICO: Supabase BaaS - {{ .GroupLabels.alertname }}'
+        headers:
+          From: 'alerts@yourdomain.com'
+          To: '${ADMIN_EMAIL}'
+        body: |
+          Alerta crítico no Supabase BaaS:
+          
+          {{ range .Alerts }}
+          Alerta: {{ .Annotations.summary }}
+          Instância: {{ .Labels.instance_id | default "N/A" }}
+          Projeto: {{ .Labels.project_name | default "N/A" }}
+          Organização: {{ .Labels.org_id | default "N/A" }}
+          Severidade: {{ .Labels.severity }}
+          
+          Descrição: {{ .Annotations.description }}
+          
+          {{ if .Annotations.runbook_url }}
+          Documentação: {{ .Annotations.runbook_url }}
+          {{ end }}
+          
+          Horário: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ if .EndsAt }}Resolvido: {{ .EndsAt.Format "2006-01-02 15:04:05" }}{{ end }}
+          
+          ---
+          {{ end }}
+          
+          Dashboard: http://localhost:3001/d/supabase-overview
+          Prometheus: http://localhost:9090
+        send_resolved: true
+
+  # Alertas de warning
+  - name: 'warning-alerts'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#supabase-monitoring'
+        username: 'Supabase Monitor'
+        icon_emoji: ':warning:'
+        title: '⚠️ Aviso - Supabase BaaS'
+        text: >-
+          {{ range .Alerts }}
+          *Alerta:* {{ .Annotations.summary }}
+          *Instância:* {{ .Labels.instance_id | default "N/A" }}
+          *Severidade:* {{ .Labels.severity }}
+          {{ end }}
+        send_resolved: true
+
+  # Alertas específicos do Supabase
+  - name: 'supabase-alerts'
+    webhook_configs:
+      - url: '${SUPABASE_WEBHOOK_URL}'
+        send_resolved: true
+        http_config:
+          bearer_token: '${WEBHOOK_TOKEN}'
+        title: 'Supabase Instance Alert'
+        text: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Instance: {{ .Labels.instance_id }}
+          Project: {{ .Labels.project_name }}
+          Service: {{ .Labels.service | default "unknown" }}
+          Severity: {{ .Labels.severity }}
+          {{ end }}
+
+# Configurações de inibição (suprimir alertas relacionados)
+inhibit_rules:
+  # Se uma instância está down, suprimir alertas de CPU/Memory dela
+  - source_match:
+      alertname: 'SupabaseInstanceDown'
+    target_match_re:
+      alertname: 'High.*Usage'
+    equal: ['instance_id']
+  
+  # Se o servidor está com memória crítica, suprimir warnings de memória
+  - source_match:
+      alertname: 'CriticalMemoryUsage'
+    target_match:
+      alertname: 'HighMemoryUsage'
+  
+  # Se o disco está crítico, suprimir warnings de disco
+  - source_match:
+      alertname: 'CriticalDiskSpace'
+    target_match:
+      alertname: 'LowDiskSpace'
+
+# Configurações de silenciamento automático
+mute_time_intervals:
+  - name: maintenance-window
+    time_intervals:
+      - times:
+          - start_time: '02:00'
+            end_time: '04:00'
+        weekdays: ['sunday']
+        months: ['1:12']
+
+# Configurações de retry
+retry:
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h

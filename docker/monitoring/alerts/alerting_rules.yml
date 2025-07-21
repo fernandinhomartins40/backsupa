@@ -1,0 +1,185 @@
+# Regras de Alerta para Supabase Multi-Tenant
+groups:
+  - name: supabase_instances
+    rules:
+      # Instância não responsiva
+      - alert: SupabaseInstanceDown
+        expr: up{job=~"supabase-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: supabase
+        annotations:
+          summary: "Instância Supabase {{ $labels.instance_id }} está fora do ar"
+          description: "A instância {{ $labels.instance_id }} ({{ $labels.project_name }}) não está respondendo há mais de 1 minuto."
+          runbook_url: "https://docs.supabase.com/troubleshooting/instance-down"
+
+      # Kong API Gateway não responsivo
+      - alert: SupabaseKongDown
+        expr: up{job="supabase-kong"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: kong
+        annotations:
+          summary: "Kong API Gateway {{ $labels.instance_id }} está fora do ar"
+          description: "O Kong da instância {{ $labels.instance_id }} não está respondendo."
+
+      # Studio não responsivo
+      - alert: SupabaseStudioDown
+        expr: up{job="supabase-studio"} == 0
+        for: 3m
+        labels:
+          severity: warning
+          service: studio
+        annotations:
+          summary: "Supabase Studio {{ $labels.instance_id }} não acessível"
+          description: "O Studio da instância {{ $labels.instance_id }} não está acessível."
+
+  - name: system_resources
+    rules:
+      # CPU alto
+      - alert: HighCPUUsage
+        expr: 100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alto uso de CPU no servidor"
+          description: "CPU está em {{ $value }}% de uso há mais de 5 minutos."
+
+      # Memória alta
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alto uso de memória no servidor"
+          description: "Memória está em {{ $value }}% de uso."
+
+      # Memória crítica
+      - alert: CriticalMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 95
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Uso crítico de memória no servidor"
+          description: "Memória está em {{ $value }}% de uso - CRÍTICO!"
+
+      # Espaço em disco baixo
+      - alert: LowDiskSpace
+        expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pouco espaço em disco"
+          description: "Partição {{ $labels.mountpoint }} está {{ $value }}% cheia."
+
+      # Espaço em disco crítico
+      - alert: CriticalDiskSpace
+        expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > 90
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Espaço crítico em disco"
+          description: "Partição {{ $labels.mountpoint }} está {{ $value }}% cheia - CRÍTICO!"
+
+  - name: docker_containers
+    rules:
+      # Container com restart frequente
+      - alert: ContainerRestartingFrequently
+        expr: rate(container_start_time_seconds[15m]) * 60 > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} reiniciando frequentemente"
+          description: "Container {{ $labels.name }} reiniciou mais de 3 vezes nos últimos 15 minutos."
+
+      # Alto uso de CPU por container
+      - alert: ContainerHighCPU
+        expr: rate(container_cpu_usage_seconds_total[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alto uso de CPU no container {{ $labels.name }}"
+          description: "Container {{ $labels.name }} está usando {{ $value }}% de CPU."
+
+      # Alto uso de memória por container
+      - alert: ContainerHighMemory
+        expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) * 100 > 90
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alto uso de memória no container {{ $labels.name }}"
+          description: "Container {{ $labels.name }} está usando {{ $value }}% da memória alocada."
+
+  - name: supabase_custom
+    rules:
+      # Muitas instâncias criadas rapidamente
+      - alert: RapidInstanceCreation
+        expr: increase(supabase_instances_total[10m]) > 5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Criação rápida de instâncias detectada"
+          description: "{{ $value }} instâncias foram criadas nos últimos 10 minutos."
+
+      # Nenhuma instância sendo monitorada
+      - alert: NoInstancesMonitored
+        expr: supabase_monitoring_targets_total == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Nenhuma instância sendo monitorada"
+          description: "O sistema de monitoramento não encontrou nenhuma instância ativa."
+
+      # Discovery não executado recentemente
+      - alert: StaleDiscovery
+        expr: (time() - supabase_discovery_last_run_timestamp) > 300
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Auto-discovery desatualizado"
+          description: "O auto-discovery não foi executado há {{ $value }} segundos."
+
+  - name: prometheus_self
+    rules:
+      # Prometheus não conseguindo fazer scrape
+      - alert: PrometheusTargetMissing
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Target {{ $labels.job }} não acessível"
+          description: "Prometheus não consegue acessar o target {{ $labels.job }} ({{ $labels.instance }})."
+
+      # Prometheus com muitos samples
+      - alert: PrometheusHighSamples
+        expr: prometheus_tsdb_head_samples > 1000000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alto número de samples no Prometheus"
+          description: "Prometheus tem {{ $value }} samples em memória."
+
+      # Prometheus próximo do limite de armazenamento
+      - alert: PrometheusStorageNearFull
+        expr: prometheus_tsdb_head_max_time - prometheus_tsdb_head_min_time > 86400 * 14
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Armazenamento do Prometheus próximo do limite"
+          description: "Prometheus está próximo do limite de retenção de dados."

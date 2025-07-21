@@ -1,0 +1,191 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Supabase BaaS - Overview Simples",
+    "tags": ["supabase", "overview", "simple"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Instâncias Ativas",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "green", "value": 1}
+              ]
+            },
+            "unit": "none"
+          }
+        },
+        "targets": [
+          {
+            "expr": "count(up{job=\"supabase-instances\"})",
+            "legendFormat": "Total",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Instâncias Online",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "green", "value": 1}
+              ]
+            },
+            "unit": "none"
+          }
+        },
+        "targets": [
+          {
+            "expr": "count(up{job=\"supabase-instances\"} == 1)",
+            "legendFormat": "Online",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "CPU do Sistema",
+        "type": "gauge",
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 100,
+            "unit": "percent",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 60},
+                {"color": "red", "value": 80}
+              ]
+            }
+          }
+        },
+        "targets": [
+          {
+            "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+            "legendFormat": "CPU %",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Status das Instâncias",
+        "type": "table",
+        "gridPos": {"h": 10, "w": 24, "x": 0, "y": 8},
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Value"},
+              "properties": [
+                {
+                  "id": "mappings",
+                  "value": [
+                    {"options": {"0": {"text": "🔴 Offline"}}, "type": "value"},
+                    {"options": {"1": {"text": "🟢 Online"}}, "type": "value"}
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "targets": [
+          {
+            "expr": "up{job=\"supabase-instances\"}",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true,
+                "__name__": true,
+                "job": false
+              },
+              "renameByName": {
+                "Value": "Status",
+                "instance": "Instância",
+                "project_name": "Projeto",
+                "org_id": "Org"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Alertas Ativos",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 18},
+        "targets": [
+          {
+            "expr": "ALERTS{alertstate=\"firing\"}",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Memória do Sistema",
+        "type": "gauge",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 18},
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 100,
+            "unit": "percent",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 70},
+                {"color": "red", "value": 85}
+              ]
+            }
+          }
+        },
+        "targets": [
+          {
+            "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+            "legendFormat": "Memória %",
+            "refId": "A"
+          }
+        ]
+      }
+    ],
+    "version": 1
+  }
+}

@@ -1,0 +1,44 @@
+# Configuração simplificada do Prometheus conforme especificação
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Regras de alerta
+rule_files:
+  - "/etc/prometheus/alerting_rules.yml"
+
+# Configuração do Alertmanager
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+# Jobs de scraping
+scrape_configs:
+  # Métricas do sistema (Node Exporter)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 15s
+
+  # Auto-discovery das instâncias Supabase via file_sd
+  - job_name: 'supabase-instances'
+    file_sd_configs:
+      - files: ['/etc/prometheus/instances.json']
+        refresh_interval: 30s
+    scrape_interval: 30s
+    metrics_path: /metrics
+    scheme: http
+
+  # Métricas do próprio Prometheus
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+
+  # Métricas do Alertmanager
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+    scrape_interval: 30s

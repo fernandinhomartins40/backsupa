@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  billing-api:
+    build: .
+    container_name: supabase_billing_api
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+      - BILLING_PORT=3002
+      - MASTER_DB_URL=${MASTER_DB_URL:-postgresql://postgres:postgres@host.docker.internal:5432/supabase_master}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000,http://localhost:3001}
+    networks:
+      - supabase-billing
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+    labels:
+      - "com.supabase.service=billing-api"
+      - "com.supabase.version=1.0.0"
+
+  redis:
+    image: redis:7-alpine
+    container_name: supabase_billing_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - supabase-billing
+    labels:
+      - "com.supabase.service=billing-redis"
+
+networks:
+  supabase-billing:
+    driver: bridge
+    labels:
+      - "com.supabase.network=billing"
+
+volumes:
+  redis_data:
+    driver: local
+    labels:
+      - "com.supabase.volume=billing-redis"

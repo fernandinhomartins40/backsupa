@@ -1,0 +1,63 @@
+{
+  "name": "Chat App - Aplicativo de Mensagens",
+  "slug": "chat-app", 
+  "description": "Aplicativo de chat em tempo real com salas, mensagens privadas e compartilhamento de mídia",
+  "long_description": "Um aplicativo de chat moderno e completo com todas as funcionalidades essenciais. Oferece mensagens em tempo real, criação de salas/grupos, chat privado, compartilhamento de arquivos e imagens, notificações push, status online/offline, histórico de mensagens e interface intuitiva. Perfeito para comunidades, equipes ou aplicações que precisam de comunicação em tempo real.",
+  "category": "Chat & Social",
+  "author_name": "Supabase Team", 
+  "author_email": "templates@supabase.com",
+  "version": "1.0.0",
+  "tags": ["chat", "real-time", "messaging", "social", "websocket", "notifications"],
+  "features": [
+    "Mensagens em tempo real",
+    "Salas/grupos de chat",
+    "Mensagens privadas (DM)",
+    "Compartilhamento de imagens",
+    "Compartilhamento de arquivos",
+    "Status online/offline",
+    "Notificações push",
+    "Histórico de mensagens",
+    "Busca em conversas",
+    "Emojis e reações",
+    "Typing indicators",
+    "Mensagens não lidas",
+    "Perfis de usuário",
+    "Moderação de salas"
+  ],
+  "requirements": {
+    "auth": true,
+    "realtime": true,
+    "storage": true,
+    "edge_functions": true
+  },
+  "demo_url": "https://chat-demo.supabase.com",
+  "github_url": "https://github.com/supabase/supabase-chat-template",
+  "documentation_url": "https://docs.supabase.com/templates/chat-app",
+  "thumbnail_url": "/uploads/thumbnails/chat-app.png",
+  "is_free": true,
+  "price_usd": 0,
+  "schema_files": [
+    "schema.sql",
+    "seed.sql"
+  ],
+  "edge_functions": [
+    "send-push-notification",
+    "moderate-message",
+    "process-media-upload"
+  ],
+  "api_config": {
+    "auth": {
+      "enabled": true,
+      "providers": ["email", "google", "github"],
+      "email_confirm": false
+    },
+    "storage": {
+      "enabled": true,
+      "buckets": ["chat-media", "user-avatars"]
+    },
+    "realtime": {
+      "enabled": true,
+      "tables": ["messages", "rooms", "user_presence"]
+    }
+  }
+}

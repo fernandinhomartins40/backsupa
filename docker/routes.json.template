@@ -1,0 +1,14 @@
+{
+  "_comment": "Template de arquivo de rotas para Supabase Multi-Tenant BaaS",
+  "_structure": "{ \"subdomain\": port_number }",
+  "_example": {
+    "app1-org123": 15001,
+    "demo-company": 15002,
+    "test-project": 15003
+  },
+  "_notes": [
+    "Este arquivo é gerenciado automaticamente pelo nginx-manager.sh",
+    "Não edite manualmente, use os comandos do nginx-manager.sh",
+    "Backup automático é criado antes de cada modificação"
+  ]
+}

@@ -1,0 +1,163 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Sistema - Recursos e Performance",
+    "tags": ["system", "resources", "performance"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "CPU Usage",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "targets": [
+          {
+            "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+            "legendFormat": "CPU Total",
+            "refId": "A"
+          },
+          {
+            "expr": "avg(rate(node_cpu_seconds_total{mode=\"system\"}[5m])) * 100",
+            "legendFormat": "CPU System",
+            "refId": "B"
+          },
+          {
+            "expr": "avg(rate(node_cpu_seconds_total{mode=\"user\"}[5m])) * 100",
+            "legendFormat": "CPU User",
+            "refId": "C"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Memory Usage",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "bytes"
+          }
+        },
+        "targets": [
+          {
+            "expr": "node_memory_MemTotal_bytes",
+            "legendFormat": "Total",
+            "refId": "A"
+          },
+          {
+            "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes",
+            "legendFormat": "Used",
+            "refId": "B"
+          },
+          {
+            "expr": "node_memory_MemAvailable_bytes",
+            "legendFormat": "Available",
+            "refId": "C"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Disk Usage",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "bytes"
+          }
+        },
+        "targets": [
+          {
+            "expr": "node_filesystem_size_bytes{fstype!=\"tmpfs\"}",
+            "legendFormat": "{{mountpoint}} - Total",
+            "refId": "A"
+          },
+          {
+            "expr": "node_filesystem_size_bytes{fstype!=\"tmpfs\"} - node_filesystem_avail_bytes{fstype!=\"tmpfs\"}",
+            "legendFormat": "{{mountpoint}} - Used",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Network I/O",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "Bps"
+          }
+        },
+        "targets": [
+          {
+            "expr": "rate(node_network_receive_bytes_total{device!=\"lo\"}[5m])",
+            "legendFormat": "{{device}} - RX",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(node_network_transmit_bytes_total{device!=\"lo\"}[5m])",
+            "legendFormat": "{{device}} - TX",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Docker Containers",
+        "type": "table",
+        "gridPos": {"h": 10, "w": 24, "x": 0, "y": 16},
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            }
+          }
+        },
+        "targets": [
+          {
+            "expr": "container_last_seen{name=~\".*supabase.*|.*_studio|.*_kong|.*_db\"}",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true,
+                "__name__": true
+              },
+              "renameByName": {
+                "name": "Container",
+                "image": "Image",
+                "Value": "Last Seen"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "version": 1
+  }
+}

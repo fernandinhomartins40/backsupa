@@ -1,0 +1,63 @@
+{
+  "name": "E-commerce Store - Loja Virtual Completa",
+  "slug": "ecommerce-store",
+  "description": "Loja virtual completa com carrinho, pagamentos, gestão de produtos e painel administrativo",
+  "long_description": "Uma solução completa de e-commerce pronta para uso. Inclui catálogo de produtos, carrinho de compras, sistema de pagamentos integrado, gestão de pedidos, controle de estoque, área do cliente, painel administrativo completo e muito mais. Ideal para quem quer vender online rapidamente ou como base para projetos personalizados.",
+  "category": "E-commerce",
+  "author_name": "Supabase Team",
+  "author_email": "templates@supabase.com",
+  "version": "1.0.0",
+  "tags": ["ecommerce", "loja", "vendas", "pagamentos", "produtos", "carrinho"],
+  "features": [
+    "Catálogo de produtos completo",
+    "Carrinho de compras persistente",
+    "Sistema de pagamentos (Stripe)",
+    "Gestão de pedidos e status",
+    "Controle de estoque automatizado",
+    "Área do cliente com histórico",
+    "Painel admin para vendedores",
+    "Sistema de cupons e descontos",
+    "Avaliações e comentários",
+    "Busca e filtros avançados",
+    "Gestão de categorias",
+    "Relatórios de vendas",
+    "Notificações por email",
+    "Checkout em múltiplas etapas"
+  ],
+  "requirements": {
+    "auth": true,
+    "realtime": true,
+    "storage": true,
+    "edge_functions": true
+  },
+  "demo_url": "https://ecommerce-demo.supabase.com",
+  "github_url": "https://github.com/supabase/supabase-ecommerce-template",
+  "documentation_url": "https://docs.supabase.com/templates/ecommerce-store",
+  "thumbnail_url": "/uploads/thumbnails/ecommerce-store.png",
+  "is_free": false,
+  "price_usd": 49.99,
+  "schema_files": [
+    "schema.sql",
+    "seed.sql"
+  ],
+  "edge_functions": [
+    "process-payment",
+    "send-order-confirmation",
+    "update-inventory"
+  ],
+  "api_config": {
+    "auth": {
+      "enabled": true,
+      "providers": ["email", "google"],
+      "email_confirm": true
+    },
+    "storage": {
+      "enabled": true,
+      "buckets": ["product-images", "store-assets"]
+    },
+    "realtime": {
+      "enabled": true,
+      "tables": ["orders", "inventory"]
+    }
+  }
+}

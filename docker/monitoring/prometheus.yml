@@ -1,0 +1,82 @@
+# Configuração do Prometheus para Supabase Multi-Tenant
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'supabase-baas'
+
+# Regras de alerta
+rule_files:
+  - "/etc/prometheus/alerting_rules.yml"
+
+# Configuração do Alertmanager
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+# Jobs de scraping
+scrape_configs:
+  # Métricas do próprio Prometheus
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+
+  # Métricas do sistema (Node Exporter)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 15s
+    metrics_path: /metrics
+
+  # Métricas dos containers Docker (cAdvisor)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    scrape_interval: 15s
+    metrics_path: /metrics
+
+  # Métricas customizadas do Supabase (nosso exporter)
+  - job_name: 'supabase-exporter'
+    static_configs:
+      - targets: ['supabase-exporter:9200']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # Auto-discovery das instâncias Supabase
+  - job_name: 'supabase-instances'
+    file_sd_configs:
+      - files: ['/etc/prometheus/instances.json']
+        refresh_interval: 30s
+    scrape_interval: 30s
+    metrics_path: /metrics
+    relabel_configs:
+      # Adicionar labels customizados
+      - source_labels: [__meta_instance_id]
+        target_label: instance_id
+      - source_labels: [__meta_project_name]
+        target_label: project_name
+      - source_labels: [__meta_org_id]
+        target_label: org_id
+
+  # Monitoramento do Grafana
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # Monitoramento do Alertmanager
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+# Configurações de armazenamento
+storage:
+  tsdb:
+    retention.time: 15d
+    retention.size: 10GB

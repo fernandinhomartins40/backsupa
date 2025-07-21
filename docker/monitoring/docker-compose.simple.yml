@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: supabase_prometheus_simple
+    restart: unless-stopped
+    ports:
+      - '9090:9090'
+    volumes:
+      - './prometheus.yml:/etc/prometheus/prometheus.yml:ro'
+      - './instances.json:/etc/prometheus/instances.json:ro'
+      - './alerts/alerting_rules.yml:/etc/prometheus/alerting_rules.yml:ro'
+      - 'prometheus_data:/prometheus'
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    networks:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: supabase_grafana_simple
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - 'grafana_data:/var/lib/grafana'
+      - './grafana/provisioning:/etc/grafana/provisioning'
+      - './grafana/dashboards:/var/lib/grafana/dashboards'
+    depends_on:
+      - prometheus
+    networks:
+      - monitoring
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: supabase_alertmanager_simple
+    restart: unless-stopped
+    ports:
+      - '9093:9093'
+    volumes:
+      - './alerts/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro'
+      - 'alertmanager_data:/alertmanager'
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    networks:
+      - monitoring
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: supabase_node_exporter_simple
+    restart: unless-stopped
+    ports:
+      - '9100:9100'
+    volumes:
+      - '/proc:/host/proc:ro'
+      - '/sys:/host/sys:ro'
+      - '/:/rootfs:ro'
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - monitoring
+
+volumes:
+  prometheus_data:
+    name: supabase_prometheus_data_simple
+  grafana_data:
+    name: supabase_grafana_data_simple
+  alertmanager_data:
+    name: supabase_alertmanager_data_simple
+
+networks:
+  monitoring:
+    name: supabase_monitoring_simple
+    external: false

@@ -1,0 +1,50 @@
+{
+  "name": "Todo App - Lista de Tarefas",
+  "slug": "todo-app",
+  "description": "Aplicação completa de lista de tarefas com autenticação e sincronização em tempo real",
+  "long_description": "Uma aplicação moderna de lista de tarefas construída com as melhores práticas. Inclui autenticação de usuários, categorização de tarefas, filtros avançados, sincronização em tempo real e interface responsiva. Perfeita para aprender os conceitos básicos do Supabase ou como base para projetos mais complexos.",
+  "category": "Aplicações Web",
+  "author_name": "Supabase Team",
+  "author_email": "templates@supabase.com",
+  "version": "1.0.0",
+  "tags": ["todo", "tasks", "productivity", "real-time", "auth"],
+  "features": [
+    "Autenticação completa (signup/login/logout)",
+    "CRUD de tarefas com RLS",
+    "Categorias e tags personalizadas",
+    "Filtros por status, categoria e data",
+    "Sincronização em tempo real",
+    "Interface responsiva",
+    "Dark mode",
+    "Notificações push",
+    "Histórico de atividades"
+  ],
+  "requirements": {
+    "auth": true,
+    "realtime": true,
+    "storage": false,
+    "edge_functions": false
+  },
+  "demo_url": "https://todo-demo.supabase.com",
+  "github_url": "https://github.com/supabase/supabase-todo-template",
+  "documentation_url": "https://docs.supabase.com/templates/todo-app",
+  "thumbnail_url": "/uploads/thumbnails/todo-app.png",
+  "is_free": true,
+  "price_usd": 0,
+  "schema_files": [
+    "schema.sql",
+    "seed.sql"
+  ],
+  "edge_functions": [],
+  "api_config": {
+    "auth": {
+      "enabled": true,
+      "providers": ["email", "google"],
+      "email_confirm": false
+    },
+    "realtime": {
+      "enabled": true,
+      "tables": ["todos", "categories"]
+    }
+  }
+}

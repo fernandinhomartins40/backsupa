@@ -1,0 +1,56 @@
+{
+  "name": "Blog CMS - Sistema de Blog Completo",
+  "slug": "blog-cms",
+  "description": "Sistema completo de blog com editor WYSIWYG, gestão de conteúdo e área administrativa",
+  "long_description": "Um sistema de blog moderno e completo com todas as funcionalidades que você precisa. Inclui editor de texto rico, gestão de posts e páginas, sistema de categorias e tags, comentários, SEO otimizado, painel administrativo intuitivo e área pública responsiva. Perfeito para blogs pessoais, corporativos ou sites de notícias.",
+  "category": "Blog & CMS",
+  "author_name": "Supabase Team",
+  "author_email": "templates@supabase.com",
+  "version": "1.0.0",
+  "tags": ["blog", "cms", "content", "posts", "seo", "editor"],
+  "features": [
+    "Editor WYSIWYG rico para posts",
+    "Gestão completa de posts e páginas",
+    "Sistema de categorias e tags",
+    "Comentários com moderação",
+    "SEO otimizado (meta tags, slugs)",
+    "Upload e gestão de imagens",
+    "Área administrativa completa",
+    "Template público responsivo",
+    "Sistema de rascunhos",
+    "Agendamento de publicação",
+    "Busca de conteúdo",
+    "Estatísticas de visualização"
+  ],
+  "requirements": {
+    "auth": true,
+    "realtime": false,
+    "storage": true,
+    "edge_functions": true
+  },
+  "demo_url": "https://blog-cms-demo.supabase.com",
+  "github_url": "https://github.com/supabase/supabase-blog-template",
+  "documentation_url": "https://docs.supabase.com/templates/blog-cms",
+  "thumbnail_url": "/uploads/thumbnails/blog-cms.png",
+  "is_free": true,
+  "price_usd": 0,
+  "schema_files": [
+    "schema.sql",
+    "seed.sql"
+  ],
+  "edge_functions": [
+    "optimize-images",
+    "generate-sitemap"
+  ],
+  "api_config": {
+    "auth": {
+      "enabled": true,
+      "providers": ["email"],
+      "email_confirm": true
+    },
+    "storage": {
+      "enabled": true,
+      "buckets": ["blog-images", "blog-files"]
+    }
+  }
+}
