@@ -1,6 +1,6 @@
 # Dockerfile para Supabase BaaS Control API
 
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Instalar dependências do sistema
 RUN apk add --no-cache \

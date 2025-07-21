@@ -1,5 +1,14 @@
 FROM node:20-alpine
 
+# Install system dependencies
+RUN apk add --no-cache \
+    curl \
+    vips-dev \
+    python3 \
+    make \
+    g++ \
+    libc6-compat
+
 WORKDIR /app
 
 # Copy package files

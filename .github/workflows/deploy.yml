@@ -18,258 +18,160 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Deploy via SSH
+    - name: Deploy to VPS
       uses: appleboy/ssh-action@v1.0.0
       with:
         host: ${{ env.VPS_HOST }}
         username: ${{ env.VPS_USER }}
         password: ${{ secrets.VPS_PASSWORD }}
         port: 22
-        timeout: 300s
-        command_timeout: 300s
-        envs: GITHUB_TOKEN
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        timeout: 600s
+        command_timeout: 600s
         script: |
-          # Não usar set -e no início para permitir diagnósticos
-          
-          echo "🚀 Iniciando deploy do Supabase BaaS..."
-          
-          # Configurar diretório do projeto
-          APP_DIR="${{ env.APP_DIR }}"
-          
           # Função de log
           log() {
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
           }
           
-          # Diagnosticar conectividade
-          log "🔍 Verificando conectividade..."
-          ping -c 3 github.com || log "⚠️  Ping para GitHub falhou"
-          nslookup github.com || log "⚠️  DNS lookup falhou"
-          curl -I https://github.com || log "⚠️  HTTPS para GitHub falhou"
+          # ====================================
+          # ETAPA 1: PREPARAR AMBIENTE
+          # ====================================
+          log "🚀 INICIANDO DEPLOY - ETAPA 1: Preparando ambiente..."
           
-          # Configurar Git globalmente
-          log "⚙️  Configurando Git..."
-          git config --global user.name "Deploy Bot" || true
-          git config --global user.email "deploy@github.com" || true
-          git config --global init.defaultBranch main || true
+          # Configurações
+          APP_DIR="${{ env.APP_DIR }}"
+          REPO_URL="https://github.com/fernandinhomartins40/backsupa.git"
           
-          # Certificados SSL
-          log "🔐 Atualizando certificados SSL..."
-          apt-get update -qq || true
-          apt-get install -y ca-certificates curl git || true
-          update-ca-certificates || true
-          
-          log "📁 Preparando diretório: $APP_DIR"
+          # Criar diretório e navegar
           mkdir -p $APP_DIR
           cd $APP_DIR
           
-          # Verificar se é um repositório git, se não, clonar
+          # Parar containers existentes ANTES de qualquer outra operação
+          log "⏹️ Parando containers existentes..."
+          if [ -f "docker/docker-compose.production.yml" ]; then
+            docker compose -f docker/docker-compose.production.yml down --remove-orphans || true
+          fi
+          
+          # ====================================
+          # ETAPA 2: BAIXAR/ATUALIZAR CÓDIGO
+          # ====================================
+          log "🚀 ETAPA 2: Baixando código..."
+          
+          # Se não existe repositório, clonar
           if [ ! -d ".git" ]; then
             log "📥 Clonando repositório..."
-            
-            # Tentar múltiplas abordagens
-            if ! git clone https://github.com/fernandinhomartins40/backsupa.git . 2>/dev/null; then
-              log "⚠️  Clone HTTPS falhou, tentando com --depth 1..."
-              if ! git clone --depth 1 https://github.com/fernandinhomartins40/backsupa.git . 2>/dev/null; then
-                log "⚠️  Clone com depth falhou, tentando baixar via curl..."
-                curl -L https://github.com/fernandinhomartins40/backsupa/archive/main.tar.gz | tar xz --strip-components=1
-                git init .
-                git remote add origin https://github.com/fernandinhomartins40/backsupa.git
-                git add .
-                git commit -m "Initial commit from deploy"
-              fi
-            fi
-            
-            log "✅ Repositório clonado com sucesso"
+            git clone $REPO_URL . || {
+              log "❌ Clone falhou, usando download direto..."
+              curl -L https://github.com/fernandinhomartins40/backsupa/archive/main.tar.gz | tar xz --strip-components=1
+            }
+          else
+            # Atualizar repositório existente
+            log "🔄 Atualizando repositório..."
+            git fetch origin && git reset --hard origin/main && git clean -fd
           fi
           
-          # Parar containers existentes
-          log "⏹️ Parando containers existentes..."
-          docker compose -f docker/docker-compose.production.yml down --remove-orphans || true
-          
-          # Backup da versão anterior (opcional)
-          if [ -d "backup" ]; then
-            rm -rf backup.old || true
-            mv backup backup.old || true
-          fi
-          mkdir -p backup
-          
-          # Atualizar código
-          log "🔄 Atualizando código..."
-          git config --global --add safe.directory $APP_DIR
-          
-          # Se já existe repositório, atualizar
-          if [ -d ".git" ]; then
-            # Verificar se remote origin existe
-            if ! git remote get-url origin >/dev/null 2>&1; then
-              git remote add origin https://github.com/fernandinhomartins40/backsupa.git
-            fi
-            
-            # Tentar atualizar
-            if ! git fetch origin 2>/dev/null; then
-              log "⚠️  Fetch falhou, removendo e clonando novamente..."
-              cd ..
-              rm -rf $APP_DIR
-              mkdir -p $APP_DIR
-              cd $APP_DIR
-              git clone https://github.com/fernandinhomartins40/backsupa.git . || {
-                log "❌ Clone falhou, baixando via curl..."
-                curl -L https://github.com/fernandinhomartins40/backsupa/archive/main.tar.gz | tar xz --strip-components=1
-              }
-            else
-              git reset --hard origin/main
-              git clean -fd
-            fi
-          fi
-          
-          # Verificar se o código foi baixado com sucesso
-          log "✅ Verificando se o repositório foi baixado..."
-          if [ ! -f "package.json" ] && [ ! -f "docker/docker-compose.production.yml" ]; then
-            log "❌ Repositório não foi baixado corretamente!"
-            ls -la
+          # Verificar se baixou corretamente
+          if [ ! -f "docker/docker-compose.production.yml" ]; then
+            log "❌ Arquivo docker-compose.production.yml não encontrado!"
             exit 1
           fi
-          log "✅ Repositório verificado com sucesso!"
+          log "✅ Código baixado com sucesso"
           
-          # Ativar exit on error após download
-          set -e
+          # ====================================
+          # ETAPA 3: INSTALAR DEPENDÊNCIAS
+          # ====================================
+          log "🚀 ETAPA 3: Verificando/instalando dependências..."
           
-          # Verificar dependências
-          log "🔍 Verificando dependências..."
+          # Atualizar sistema
+          apt-get update -qq
           
-          # Instalar Docker se não existir
-          if ! command -v docker &> /dev/null; then
+          # Instalar Docker se necessário
+          if ! command -v docker >/dev/null 2>&1; then
             log "📦 Instalando Docker..."
-            curl -fsSL https://get.docker.com -o get-docker.sh
-            sh get-docker.sh
+            curl -fsSL https://get.docker.com | sh
             systemctl start docker
             systemctl enable docker
-            usermod -aG docker $USER
+          else
+            log "✅ Docker já instalado"
           fi
           
           # Verificar Docker Compose
-          if ! docker compose version &> /dev/null; then
-            log "📦 Docker Compose não encontrado. Tentando instalar plugin..."
-            apt-get update
+          if ! docker compose version >/dev/null 2>&1; then
+            log "📦 Instalando Docker Compose..."
             apt-get install -y docker-compose-plugin
+          else
+            log "✅ Docker Compose já instalado"
           fi
           
-          # Verificar se docker-compose de produção existe
-          if [ ! -f "docker/docker-compose.production.yml" ]; then
-            log "❌ Arquivo docker/docker-compose.production.yml não encontrado!"
-            exit 1
-          fi
+          # ====================================
+          # ETAPA 4: LIMPEZA PRÉ-BUILD
+          # ====================================
+          log "🚀 ETAPA 4: Limpando ambiente..."
           
-          # Verificar se arquivos necessários existem
-          log "🔍 Verificando arquivos necessários..."
+          # Limpar containers antigos
+          docker system prune -af --volumes || true
           
-          REQUIRED_FILES="docker/control-api/Dockerfile docker/billing-system/billing-api/Dockerfile docker/billing-system/marketplace/Dockerfile docker/nginx-config/nginx.conf"
-          for file in $REQUIRED_FILES; do
-            if [ ! -f "$file" ]; then
-              log "❌ Arquivo necessário não encontrado: $file"
-              exit 1
-            fi
-          done
-          
-          # Configurar permissões
-          chmod +x docker/scripts/*.sh 2>/dev/null || true
-          chmod +x scripts/deploy/*.sh 2>/dev/null || true
-          
-          # Limpar containers e imagens antigas
-          log "🧹 Limpando containers antigos..."
-          docker system prune -f --volumes || true
+          # ====================================
+          # ETAPA 5: BUILD E DEPLOY
+          # ====================================
+          log "🚀 ETAPA 5: Fazendo build e iniciando containers..."
           
           # Iniciar aplicação
-          log "🚀 Iniciando aplicação..."
-          COMPOSE_FILE="docker/docker-compose.production.yml"
+          docker compose -f docker/docker-compose.production.yml up -d --build
           
-          docker compose -f $COMPOSE_FILE up -d --build --remove-orphans
+          # ====================================
+          # ETAPA 6: VERIFICAÇÕES
+          # ====================================
+          log "🚀 ETAPA 6: Verificando deployment..."
           
           # Aguardar containers iniciarem
           log "⏳ Aguardando containers iniciarem..."
-          sleep 30
+          sleep 45
           
-          # Verificar status
-          log "✅ Verificando status dos containers..."
-          docker compose -f $COMPOSE_FILE ps
+          # Verificar status dos containers
+          log "📋 Status dos containers:"
+          docker compose -f docker/docker-compose.production.yml ps
           
-          # Health checks
+          # Health checks básicos
           log "🏥 Executando health checks..."
           
           # Verificar se containers estão rodando
           FAILED_SERVICES=""
           
-          for service in supabase_master_db supabase_control_api supabase_billing_api supabase_marketplace_api supabase_nginx; do
-            if ! docker ps --format "{{.Names}}" | grep -q "^$service$"; then
-              FAILED_SERVICES="$FAILED_SERVICES $service"
-              log "❌ Serviço $service não está rodando"
+          EXPECTED_CONTAINERS="supabase_master_db supabase_control_api supabase_billing_api supabase_marketplace_api supabase_nginx"
+          for container in $EXPECTED_CONTAINERS; do
+            if docker ps --format "{{.Names}}" | grep -q "^$container$"; then
+              log "✅ Container $container está rodando"
             else
-              log "✅ Serviço $service está rodando"
+              log "❌ Container $container NÃO está rodando"
+              FAILED_SERVICES="$FAILED_SERVICES $container"
             fi
           done
           
-          # Verificar endpoints
-          sleep 10
+          # Testar endpoints básicos
+          sleep 15
           
-          # Test nginx
           if curl -f http://localhost/health >/dev/null 2>&1; then
-            log "✅ Nginx: Respondendo"
+            log "✅ Nginx health check: OK"
           else
-            log "❌ Nginx: Não está respondendo"
-            FAILED_SERVICES="$FAILED_SERVICES nginx"
+            log "❌ Nginx health check: FALHOU"
+            FAILED_SERVICES="$FAILED_SERVICES nginx-health"
           fi
           
-          # Test control API
-          if curl -f http://localhost:3001/health >/dev/null 2>&1; then
-            log "✅ Control API: Respondendo"
-          else
-            log "❌ Control API: Não está respondendo"
-            FAILED_SERVICES="$FAILED_SERVICES control-api"
-          fi
-          
-          # Test billing API (assumindo endpoint similar)
-          if curl -f http://localhost:3002/health >/dev/null 2>&1; then
-            log "✅ Billing API: Respondendo"
-          else
-            log "❌ Billing API: Não está respondendo"
-            FAILED_SERVICES="$FAILED_SERVICES billing-api"
-          fi
-          
-          # Test marketplace API (assumindo endpoint similar) 
-          if curl -f http://localhost:3003/health >/dev/null 2>&1; then
-            log "✅ Marketplace API: Respondendo"
-          else
-            log "❌ Marketplace API: Não está respondendo"
-            FAILED_SERVICES="$FAILED_SERVICES marketplace-api"
-          fi
-          
-          # Mostrar logs se houver falhas
+          # ====================================
+          # ETAPA 7: RESULTADO FINAL
+          # ====================================
           if [ -n "$FAILED_SERVICES" ]; then
-            log "❌ Serviços com falha:$FAILED_SERVICES"
-            log "📋 Últimos logs dos containers:"
-            docker compose -f $COMPOSE_FILE logs --tail=20
-            
-            log "🔄 Tentativa de restart dos serviços com falha..."
-            docker compose -f $COMPOSE_FILE restart
-            sleep 20
-            
-            # Verificar novamente
-            docker compose -f $COMPOSE_FILE ps
+            log "❌ DEPLOY COM PROBLEMAS. Serviços com falha:$FAILED_SERVICES"
+            log "📋 Logs dos containers:"
+            docker compose -f docker/docker-compose.production.yml logs --tail=20
+            exit 1
           else
-            log "🎉 Deploy concluído com sucesso!"
-            log "🌐 Acesse: http://${{ env.VPS_HOST }}"
-            log "🔧 Control API: http://${{ env.VPS_HOST }}:3001"
-            log "💳 Billing API: http://${{ env.VPS_HOST }}:3002"
-            log "🏪 Marketplace API: http://${{ env.VPS_HOST }}:3003"
+            log "🎉 DEPLOY CONCLUÍDO COM SUCESSO!"
+            log "🌐 Aplicação disponível em:"
+            log "   - http://${{ env.VPS_HOST }} (Nginx)"
+            log "   - http://${{ env.VPS_HOST }}:3001 (Control API)"
+            log "   - http://${{ env.VPS_HOST }}:3002 (Billing API)"
+            log "   - http://${{ env.VPS_HOST }}:3003 (Marketplace API)"
+            log "📊 Resumo: $(docker ps --format '{{.Names}}' | wc -l) containers ativos"
           fi
-          
-          # Log final
-          log "📊 Resumo do Deploy:"
-          echo "- Host: ${{ env.VPS_HOST }}"
-          echo "- Diretório: $APP_DIR"
-          echo "- Containers ativos: $(docker ps --format '{{.Names}}' | wc -l)"
-          echo "- Data: $(date)"
-          
-          log "✨ Deploy finalizado!"
