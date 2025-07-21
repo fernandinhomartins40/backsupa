@@ -1,9 +1,14 @@
-name: Deploy to VPS
+name: Deploy to VPS Hostinger
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
+env:
+  VPS_HOST: '82.25.69.57'
+  VPS_USER: 'root'
+  APP_DIR: '/opt/supabase-baas'
 
 jobs:
   deploy:
@@ -16,48 +21,380 @@ jobs:
     - name: Deploy via SSH
       uses: appleboy/ssh-action@v1.0.0
       with:
-        host: 82.25.69.57
-        username: root
+        host: ${{ env.VPS_HOST }}
+        username: ${{ env.VPS_USER }}
         password: ${{ secrets.VPS_PASSWORD }}
         port: 22
+        timeout: 300s
+        command_timeout: 300s
         script: |
-          # Configurar diretório do projeto
-          APP_DIR="/opt/supabase-baas"
+          set -e  # Exit on any error
           
-          # Criar diretório se não existir
+          echo "🚀 Iniciando deploy do Supabase BaaS..."
+          
+          # Configurar diretório do projeto
+          APP_DIR="${{ env.APP_DIR }}"
+          
+          # Função de log
+          log() {
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+          }
+          
+          log "📁 Preparando diretório: $APP_DIR"
           mkdir -p $APP_DIR
           cd $APP_DIR
           
           # Verificar se é um repositório git, se não, clonar
           if [ ! -d ".git" ]; then
-            echo "Clonando repositório..."
+            log "📥 Clonando repositório..."
             git clone https://github.com/fernandinhomartins40/backsupa.git .
           fi
           
           # Parar containers existentes
-          docker compose down || true
+          log "⏹️ Parando containers existentes..."
+          docker compose -f docker/docker-compose.yml down --remove-orphans || true
+          
+          # Backup da versão anterior (opcional)
+          if [ -d "backup" ]; then
+            rm -rf backup.old || true
+            mv backup backup.old || true
+          fi
+          mkdir -p backup
           
           # Atualizar código
-          git reset --hard
-          git pull origin main
+          log "🔄 Atualizando código..."
+          git fetch origin
+          git reset --hard origin/main
           
-          # Verificar se docker compose está disponível
-          if ! command -v docker compose &> /dev/null; then
-            echo "Docker Compose não encontrado. Instalando..."
-            curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
-            chmod +x /usr/local/bin/docker-compose
-            ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+          # Verificar dependências
+          log "🔍 Verificando dependências..."
+          
+          # Instalar Docker se não existir
+          if ! command -v docker &> /dev/null; then
+            log "📦 Instalando Docker..."
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            sh get-docker.sh
+            systemctl start docker
+            systemctl enable docker
+            usermod -aG docker $USER
           fi
+          
+          # Verificar Docker Compose
+          if ! docker compose version &> /dev/null; then
+            log "📦 Docker Compose não encontrado. Tentando instalar plugin..."
+            apt-get update
+            apt-get install -y docker-compose-plugin
+          fi
+          
+          # Verificar se docker-compose.yml existe
+          if [ ! -f "docker/docker-compose.yml" ]; then
+            log "❌ Arquivo docker/docker-compose.yml não encontrado!"
+            log "📝 Criando docker-compose.yml básico..."
+            
+            # Criar docker-compose.yml básico
+            cat > docker-compose.yml << 'EOF'
+          version: '3.8'
+          
+          services:
+            # PostgreSQL Master Database
+            master-db:
+              image: postgres:15.1
+              container_name: supabase_master_db
+              restart: unless-stopped
+              environment:
+                POSTGRES_DB: supabase_master
+                POSTGRES_USER: postgres
+                POSTGRES_PASSWORD: postgres123
+                POSTGRES_HOST_AUTH_METHOD: trust
+              ports:
+                - "5432:5432"
+              volumes:
+                - master_db_data:/var/lib/postgresql/data
+                - ./docker/master-db-setup.sql:/docker-entrypoint-initdb.d/01-setup.sql
+                - ./docker/billing-system/billing-schema.sql:/docker-entrypoint-initdb.d/02-billing.sql
+              networks:
+                - supabase_network
+              healthcheck:
+                test: ["CMD-SHELL", "pg_isready -U postgres"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+          
+            # Control API
+            control-api:
+              build:
+                context: ./docker/control-api
+                dockerfile: Dockerfile
+              container_name: supabase_control_api
+              restart: unless-stopped
+              environment:
+                - NODE_ENV=production
+                - PORT=3001
+                - MASTER_DB_URL=postgresql://postgres:postgres123@master-db:5432/supabase_master
+              ports:
+                - "3001:3001"
+              depends_on:
+                master-db:
+                  condition: service_healthy
+              networks:
+                - supabase_network
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+          
+            # Billing API
+            billing-api:
+              build:
+                context: ./docker/billing-system/billing-api
+                dockerfile: Dockerfile
+              container_name: supabase_billing_api
+              restart: unless-stopped
+              environment:
+                - NODE_ENV=production
+                - PORT=3002
+                - MASTER_DB_URL=postgresql://postgres:postgres123@master-db:5432/supabase_master
+              ports:
+                - "3002:3002"
+              depends_on:
+                master-db:
+                  condition: service_healthy
+              networks:
+                - supabase_network
+          
+            # Marketplace API
+            marketplace-api:
+              build:
+                context: ./docker/billing-system/marketplace
+                dockerfile: Dockerfile
+              container_name: supabase_marketplace_api
+              restart: unless-stopped
+              environment:
+                - NODE_ENV=production
+                - PORT=3003
+                - MASTER_DB_URL=postgresql://postgres:postgres123@master-db:5432/supabase_master
+              ports:
+                - "3003:3003"
+              depends_on:
+                master-db:
+                  condition: service_healthy
+              networks:
+                - supabase_network
+          
+            # Nginx Proxy
+            nginx:
+              image: nginx:alpine
+              container_name: supabase_nginx
+              restart: unless-stopped
+              ports:
+                - "80:80"
+                - "443:443"
+              volumes:
+                - ./nginx.conf:/etc/nginx/nginx.conf:ro
+              depends_on:
+                - control-api
+                - billing-api
+                - marketplace-api
+              networks:
+                - supabase_network
+          
+          volumes:
+            master_db_data:
+              driver: local
+          
+          networks:
+            supabase_network:
+              driver: bridge
+          EOF
+          fi
+          
+          # Criar Dockerfiles se não existirem
+          log "🐳 Verificando Dockerfiles..."
+          
+          # Control API Dockerfile
+          if [ ! -f "docker/control-api/Dockerfile" ]; then
+            mkdir -p docker/control-api
+            cat > docker/control-api/Dockerfile << 'EOF'
+          FROM node:20-alpine
+          WORKDIR /app
+          COPY package*.json ./
+          RUN npm ci --production --silent
+          COPY . .
+          EXPOSE 3001
+          CMD ["node", "server.js"]
+          EOF
+          fi
+          
+          # Billing API Dockerfile
+          if [ ! -f "docker/billing-system/billing-api/Dockerfile" ]; then
+            mkdir -p docker/billing-system/billing-api
+            cat > docker/billing-system/billing-api/Dockerfile << 'EOF'
+          FROM node:20-alpine
+          WORKDIR /app
+          COPY package*.json ./
+          RUN npm ci --production --silent
+          COPY . .
+          EXPOSE 3002
+          CMD ["node", "server.js"]
+          EOF
+          fi
+          
+          # Marketplace API Dockerfile
+          if [ ! -f "docker/billing-system/marketplace/Dockerfile" ]; then
+            mkdir -p docker/billing-system/marketplace
+            cat > docker/billing-system/marketplace/Dockerfile << 'EOF'
+          FROM node:20-alpine
+          WORKDIR /app
+          COPY package*.json ./
+          RUN npm ci --production --silent
+          COPY . .
+          EXPOSE 3003
+          CMD ["node", "marketplace-api.js"]
+          EOF
+          fi
+          
+          # Criar nginx.conf básico
+          if [ ! -f "nginx.conf" ]; then
+            log "🌐 Criando configuração Nginx..."
+            cat > nginx.conf << 'EOF'
+          events {
+              worker_connections 1024;
+          }
+          
+          http {
+              upstream control_api {
+                  server control-api:3001;
+              }
+              
+              upstream billing_api {
+                  server billing-api:3002;
+              }
+              
+              upstream marketplace_api {
+                  server marketplace-api:3003;
+              }
+              
+              server {
+                  listen 80;
+                  server_name _;
+                  
+                  location /api/control {
+                      proxy_pass http://control_api;
+                      proxy_set_header Host $host;
+                      proxy_set_header X-Real-IP $remote_addr;
+                  }
+                  
+                  location /api/billing {
+                      proxy_pass http://billing_api;
+                      proxy_set_header Host $host;
+                      proxy_set_header X-Real-IP $remote_addr;
+                  }
+                  
+                  location /api/marketplace {
+                      proxy_pass http://marketplace_api;
+                      proxy_set_header Host $host;
+                      proxy_set_header X-Real-IP $remote_addr;
+                  }
+                  
+                  location /health {
+                      return 200 "OK\n";
+                      add_header Content-Type text/plain;
+                  }
+                  
+                  location / {
+                      return 200 "Supabase BaaS - Running\n";
+                      add_header Content-Type text/plain;
+                  }
+              }
+          }
+          EOF
+          fi
+          
+          # Configurar permissões
+          chmod +x docker/scripts/*.sh 2>/dev/null || true
+          chmod +x scripts/deploy/*.sh 2>/dev/null || true
+          
+          # Limpar containers e imagens antigas
+          log "🧹 Limpando containers antigos..."
+          docker system prune -f --volumes || true
           
           # Iniciar aplicação
-          docker compose up -d --build
+          log "🚀 Iniciando aplicação..."
+          COMPOSE_FILE="docker-compose.yml"
+          if [ -f "docker/docker-compose.yml" ]; then
+            COMPOSE_FILE="docker/docker-compose.yml"
+          fi
+          
+          docker compose -f $COMPOSE_FILE up -d --build --remove-orphans
+          
+          # Aguardar containers iniciarem
+          log "⏳ Aguardando containers iniciarem..."
+          sleep 30
           
           # Verificar status
-          docker compose ps
+          log "✅ Verificando status dos containers..."
+          docker compose -f $COMPOSE_FILE ps
           
-          # Verificar logs se houver erro
-          if [ $? -ne 0 ]; then
-            echo "Erro ao iniciar containers. Verificando logs..."
-            docker compose logs --tail=50
-            exit 1
+          # Health checks
+          log "🏥 Executando health checks..."
+          
+          # Verificar se containers estão rodando
+          FAILED_SERVICES=""
+          
+          for service in supabase_master_db supabase_control_api supabase_billing_api supabase_marketplace_api supabase_nginx; do
+            if ! docker ps --format "{{.Names}}" | grep -q "^$service$"; then
+              FAILED_SERVICES="$FAILED_SERVICES $service"
+              log "❌ Serviço $service não está rodando"
+            else
+              log "✅ Serviço $service está rodando"
+            fi
+          done
+          
+          # Verificar endpoints
+          sleep 10
+          
+          # Test nginx
+          if curl -f http://localhost/health >/dev/null 2>&1; then
+            log "✅ Nginx: Respondendo"
+          else
+            log "❌ Nginx: Não está respondendo"
+            FAILED_SERVICES="$FAILED_SERVICES nginx"
           fi
+          
+          # Test control API
+          if curl -f http://localhost:3001/health >/dev/null 2>&1; then
+            log "✅ Control API: Respondendo"
+          else
+            log "❌ Control API: Não está respondendo"
+            FAILED_SERVICES="$FAILED_SERVICES control-api"
+          fi
+          
+          # Mostrar logs se houver falhas
+          if [ -n "$FAILED_SERVICES" ]; then
+            log "❌ Serviços com falha:$FAILED_SERVICES"
+            log "📋 Últimos logs dos containers:"
+            docker compose -f $COMPOSE_FILE logs --tail=20
+            
+            log "🔄 Tentativa de restart dos serviços com falha..."
+            docker compose -f $COMPOSE_FILE restart
+            sleep 20
+            
+            # Verificar novamente
+            docker compose -f $COMPOSE_FILE ps
+          else
+            log "🎉 Deploy concluído com sucesso!"
+            log "🌐 Acesse: http://${{ env.VPS_HOST }}"
+            log "🔧 Control API: http://${{ env.VPS_HOST }}:3001"
+            log "💳 Billing API: http://${{ env.VPS_HOST }}:3002"
+            log "🏪 Marketplace API: http://${{ env.VPS_HOST }}:3003"
+          fi
+          
+          # Log final
+          log "📊 Resumo do Deploy:"
+          echo "- Host: ${{ env.VPS_HOST }}"
+          echo "- Diretório: $APP_DIR"
+          echo "- Containers ativos: $(docker ps --format '{{.Names}}' | wc -l)"
+          echo "- Data: $(date)"
+          
+          log "✨ Deploy finalizado!"
