@@ -1,0 +1,131 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Master Database
+  master-db:
+    image: postgres:15.1
+    container_name: supabase_master_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: supabase_master
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - master_db_data:/var/lib/postgresql/data
+      - ./master-db-setup.sql:/docker-entrypoint-initdb.d/01-setup.sql
+      - ./billing-system/billing-schema.sql:/docker-entrypoint-initdb.d/02-billing.sql
+    networks:
+      - supabase_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Control API
+  control-api:
+    build:
+      context: ./control-api
+      dockerfile: Dockerfile
+    container_name: supabase_control_api
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - HOST=0.0.0.0
+      - MASTER_DB_URL=postgresql://postgres:postgres123@master-db:5432/supabase_master
+    ports:
+      - "3001:3001"
+    depends_on:
+      master-db:
+        condition: service_healthy
+    networks:
+      - supabase_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Billing API
+  billing-api:
+    build:
+      context: ./billing-system/billing-api
+      dockerfile: Dockerfile
+    container_name: supabase_billing_api
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - HOST=0.0.0.0
+      - MASTER_DB_URL=postgresql://postgres:postgres123@master-db:5432/supabase_master
+    ports:
+      - "3002:3002"
+    depends_on:
+      master-db:
+        condition: service_healthy
+    networks:
+      - supabase_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Marketplace API
+  marketplace-api:
+    build:
+      context: ./billing-system/marketplace
+      dockerfile: Dockerfile
+    container_name: supabase_marketplace_api
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3003
+      - HOST=0.0.0.0
+      - MASTER_DB_URL=postgresql://postgres:postgres123@master-db:5432/supabase_master
+    ports:
+      - "3003:3003"
+    depends_on:
+      master-db:
+        condition: service_healthy
+    networks:
+      - supabase_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: supabase_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-config/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - control-api
+      - billing-api
+      - marketplace-api
+    networks:
+      - supabase_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  master_db_data:
+    driver: local
+
+networks:
+  supabase_network:
+    driver: bridge

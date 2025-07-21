@@ -52,7 +52,7 @@ jobs:
           
           # Parar containers existentes
           log "⏹️ Parando containers existentes..."
-          docker compose -f docker/docker-compose.yml down --remove-orphans || true
+          docker compose -f docker/docker-compose.production.yml down --remove-orphans || true
           
           # Backup da versão anterior (opcional)
           if [ -d "backup" ]; then
@@ -63,8 +63,10 @@ jobs:
           
           # Atualizar código
           log "🔄 Atualizando código..."
+          git config --global --add safe.directory $APP_DIR
           git fetch origin
           git reset --hard origin/main
+          git clean -fd
           
           # Verificar dependências
           log "🔍 Verificando dependências..."
@@ -86,230 +88,22 @@ jobs:
             apt-get install -y docker-compose-plugin
           fi
           
-          # Verificar se docker-compose.yml existe
-          if [ ! -f "docker/docker-compose.yml" ]; then
-            log "❌ Arquivo docker/docker-compose.yml não encontrado!"
-            log "📝 Criando docker-compose.yml básico..."
-            
-            # Criar docker-compose.yml básico
-            cat > docker-compose.yml << 'EOF'
-          version: '3.8'
-          
-          services:
-            # PostgreSQL Master Database
-            master-db:
-              image: postgres:15.1
-              container_name: supabase_master_db
-              restart: unless-stopped
-              environment:
-                POSTGRES_DB: supabase_master
-                POSTGRES_USER: postgres
-                POSTGRES_PASSWORD: postgres123
-                POSTGRES_HOST_AUTH_METHOD: trust
-              ports:
-                - "5432:5432"
-              volumes:
-                - master_db_data:/var/lib/postgresql/data
-                - ./docker/master-db-setup.sql:/docker-entrypoint-initdb.d/01-setup.sql
-                - ./docker/billing-system/billing-schema.sql:/docker-entrypoint-initdb.d/02-billing.sql
-              networks:
-                - supabase_network
-              healthcheck:
-                test: ["CMD-SHELL", "pg_isready -U postgres"]
-                interval: 30s
-                timeout: 10s
-                retries: 3
-          
-            # Control API
-            control-api:
-              build:
-                context: ./docker/control-api
-                dockerfile: Dockerfile
-              container_name: supabase_control_api
-              restart: unless-stopped
-              environment:
-                - NODE_ENV=production
-                - PORT=3001
-                - MASTER_DB_URL=postgresql://postgres:postgres123@master-db:5432/supabase_master
-              ports:
-                - "3001:3001"
-              depends_on:
-                master-db:
-                  condition: service_healthy
-              networks:
-                - supabase_network
-              healthcheck:
-                test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-                interval: 30s
-                timeout: 10s
-                retries: 3
-          
-            # Billing API
-            billing-api:
-              build:
-                context: ./docker/billing-system/billing-api
-                dockerfile: Dockerfile
-              container_name: supabase_billing_api
-              restart: unless-stopped
-              environment:
-                - NODE_ENV=production
-                - PORT=3002
-                - MASTER_DB_URL=postgresql://postgres:postgres123@master-db:5432/supabase_master
-              ports:
-                - "3002:3002"
-              depends_on:
-                master-db:
-                  condition: service_healthy
-              networks:
-                - supabase_network
-          
-            # Marketplace API
-            marketplace-api:
-              build:
-                context: ./docker/billing-system/marketplace
-                dockerfile: Dockerfile
-              container_name: supabase_marketplace_api
-              restart: unless-stopped
-              environment:
-                - NODE_ENV=production
-                - PORT=3003
-                - MASTER_DB_URL=postgresql://postgres:postgres123@master-db:5432/supabase_master
-              ports:
-                - "3003:3003"
-              depends_on:
-                master-db:
-                  condition: service_healthy
-              networks:
-                - supabase_network
-          
-            # Nginx Proxy
-            nginx:
-              image: nginx:alpine
-              container_name: supabase_nginx
-              restart: unless-stopped
-              ports:
-                - "80:80"
-                - "443:443"
-              volumes:
-                - ./nginx.conf:/etc/nginx/nginx.conf:ro
-              depends_on:
-                - control-api
-                - billing-api
-                - marketplace-api
-              networks:
-                - supabase_network
-          
-          volumes:
-            master_db_data:
-              driver: local
-          
-          networks:
-            supabase_network:
-              driver: bridge
-          EOF
+          # Verificar se docker-compose de produção existe
+          if [ ! -f "docker/docker-compose.production.yml" ]; then
+            log "❌ Arquivo docker/docker-compose.production.yml não encontrado!"
+            exit 1
           fi
           
-          # Criar Dockerfiles se não existirem
-          log "🐳 Verificando Dockerfiles..."
+          # Verificar se arquivos necessários existem
+          log "🔍 Verificando arquivos necessários..."
           
-          # Control API Dockerfile
-          if [ ! -f "docker/control-api/Dockerfile" ]; then
-            mkdir -p docker/control-api
-            cat > docker/control-api/Dockerfile << 'EOF'
-          FROM node:20-alpine
-          WORKDIR /app
-          COPY package*.json ./
-          RUN npm ci --production --silent
-          COPY . .
-          EXPOSE 3001
-          CMD ["node", "server.js"]
-          EOF
-          fi
-          
-          # Billing API Dockerfile
-          if [ ! -f "docker/billing-system/billing-api/Dockerfile" ]; then
-            mkdir -p docker/billing-system/billing-api
-            cat > docker/billing-system/billing-api/Dockerfile << 'EOF'
-          FROM node:20-alpine
-          WORKDIR /app
-          COPY package*.json ./
-          RUN npm ci --production --silent
-          COPY . .
-          EXPOSE 3002
-          CMD ["node", "server.js"]
-          EOF
-          fi
-          
-          # Marketplace API Dockerfile
-          if [ ! -f "docker/billing-system/marketplace/Dockerfile" ]; then
-            mkdir -p docker/billing-system/marketplace
-            cat > docker/billing-system/marketplace/Dockerfile << 'EOF'
-          FROM node:20-alpine
-          WORKDIR /app
-          COPY package*.json ./
-          RUN npm ci --production --silent
-          COPY . .
-          EXPOSE 3003
-          CMD ["node", "marketplace-api.js"]
-          EOF
-          fi
-          
-          # Criar nginx.conf básico
-          if [ ! -f "nginx.conf" ]; then
-            log "🌐 Criando configuração Nginx..."
-            cat > nginx.conf << 'EOF'
-          events {
-              worker_connections 1024;
-          }
-          
-          http {
-              upstream control_api {
-                  server control-api:3001;
-              }
-              
-              upstream billing_api {
-                  server billing-api:3002;
-              }
-              
-              upstream marketplace_api {
-                  server marketplace-api:3003;
-              }
-              
-              server {
-                  listen 80;
-                  server_name _;
-                  
-                  location /api/control {
-                      proxy_pass http://control_api;
-                      proxy_set_header Host $host;
-                      proxy_set_header X-Real-IP $remote_addr;
-                  }
-                  
-                  location /api/billing {
-                      proxy_pass http://billing_api;
-                      proxy_set_header Host $host;
-                      proxy_set_header X-Real-IP $remote_addr;
-                  }
-                  
-                  location /api/marketplace {
-                      proxy_pass http://marketplace_api;
-                      proxy_set_header Host $host;
-                      proxy_set_header X-Real-IP $remote_addr;
-                  }
-                  
-                  location /health {
-                      return 200 "OK\n";
-                      add_header Content-Type text/plain;
-                  }
-                  
-                  location / {
-                      return 200 "Supabase BaaS - Running\n";
-                      add_header Content-Type text/plain;
-                  }
-              }
-          }
-          EOF
-          fi
+          REQUIRED_FILES="docker/control-api/Dockerfile docker/billing-system/billing-api/Dockerfile docker/billing-system/marketplace/Dockerfile docker/nginx-config/nginx.conf"
+          for file in $REQUIRED_FILES; do
+            if [ ! -f "$file" ]; then
+              log "❌ Arquivo necessário não encontrado: $file"
+              exit 1
+            fi
+          done
           
           # Configurar permissões
           chmod +x docker/scripts/*.sh 2>/dev/null || true
@@ -321,10 +115,7 @@ jobs:
           
           # Iniciar aplicação
           log "🚀 Iniciando aplicação..."
-          COMPOSE_FILE="docker-compose.yml"
-          if [ -f "docker/docker-compose.yml" ]; then
-            COMPOSE_FILE="docker/docker-compose.yml"
-          fi
+          COMPOSE_FILE="docker/docker-compose.production.yml"
           
           docker compose -f $COMPOSE_FILE up -d --build --remove-orphans
           
@@ -368,6 +159,22 @@ jobs:
           else
             log "❌ Control API: Não está respondendo"
             FAILED_SERVICES="$FAILED_SERVICES control-api"
+          fi
+          
+          # Test billing API (assumindo endpoint similar)
+          if curl -f http://localhost:3002/health >/dev/null 2>&1; then
+            log "✅ Billing API: Respondendo"
+          else
+            log "❌ Billing API: Não está respondendo"
+            FAILED_SERVICES="$FAILED_SERVICES billing-api"
+          fi
+          
+          # Test marketplace API (assumindo endpoint similar) 
+          if curl -f http://localhost:3003/health >/dev/null 2>&1; then
+            log "✅ Marketplace API: Respondendo"
+          else
+            log "❌ Marketplace API: Não está respondendo"
+            FAILED_SERVICES="$FAILED_SERVICES marketplace-api"
           fi
           
           # Mostrar logs se houver falhas
