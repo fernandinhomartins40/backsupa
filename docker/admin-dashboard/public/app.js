@@ -1,8 +1,8 @@
 // Supabase BaaS Dashboard JavaScript
-const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : 'http://82.25.69.57:3001';
-const API_BILLING = window.location.hostname === 'localhost' ? 'http://localhost:3002' : 'http://82.25.69.57:3002';
-const API_MARKETPLACE = window.location.hostname === 'localhost' ? 'http://localhost:3003' : 'http://82.25.69.57:3003';
-const STUDIO_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'http://82.25.69.57:3000';
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost/api/control' : '/api/control';
+const API_BILLING = window.location.hostname === 'localhost' ? 'http://localhost/api/billing' : '/api/billing';
+const API_MARKETPLACE = window.location.hostname === 'localhost' ? 'http://localhost/api/marketplace' : '/api/marketplace';
+const STUDIO_URL = window.location.hostname === 'localhost' ? 'http://localhost/studio' : '/studio';
 
 // State management
 let currentView = 'dashboard';

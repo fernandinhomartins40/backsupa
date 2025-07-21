@@ -9,7 +9,6 @@
   },
   "dependencies": {
     "express": "^4.18.2",
-    "express-static": "^1.2.6",
     "cors": "^2.8.5"
   },
   "devDependencies": {
