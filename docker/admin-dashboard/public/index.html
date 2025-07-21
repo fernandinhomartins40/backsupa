@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supabase BaaS Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'supabase': '#3ecf8e',
+                        'supabase-dark': '#1a1a1a',
+                        'supabase-gray': '#171717',
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 dark:bg-supabase-dark text-gray-900 dark:text-gray-100">
+    <!-- Header -->
+    <header class="bg-white dark:bg-supabase-gray border-b border-gray-200 dark:border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-8 h-8 text-supabase" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M21.362 9.354H12V.396c0-1.609 1.951-2.413 3.095-1.27L21.095 5.13c1.144 1.143.34 3.094-1.269 3.094-4.673 0-5.362.681-5.362 1.13z"/>
+                            <path d="M2.638 14.646H12v8.958c0 1.609-1.951 2.413-3.095 1.27L2.905 18.87c-1.144-1.143-.34-3.094 1.269-3.094 4.673 0 5.362-.681 5.362-1.13z"/>
+                        </svg>
+                        <h1 class="text-xl font-semibold">Supabase BaaS Platform</h1>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="theme-toggle" class="p-2 rounded-md bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700">
+                        <i class="fas fa-moon dark:hidden"></i>
+                        <i class="fas fa-sun hidden dark:inline"></i>
+                    </button>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-8 h-8 bg-supabase rounded-full flex items-center justify-center text-white font-semibold">
+                            A
+                        </div>
+                        <span class="text-sm">Admin</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex min-h-screen">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white dark:bg-supabase-gray border-r border-gray-200 dark:border-gray-800 p-6">
+            <nav class="space-y-1">
+                <a href="#" onclick="showDashboard()" class="nav-item active" id="nav-dashboard">
+                    <i class="fas fa-home"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" onclick="showProjects()" class="nav-item" id="nav-projects">
+                    <i class="fas fa-layer-group"></i>
+                    <span>Projects</span>
+                </a>
+                <a href="#" onclick="showOrganizations()" class="nav-item" id="nav-organizations">
+                    <i class="fas fa-building"></i>
+                    <span>Organizations</span>
+                </a>
+                <a href="#" onclick="showBilling()" class="nav-item" id="nav-billing">
+                    <i class="fas fa-credit-card"></i>
+                    <span>Billing</span>
+                </a>
+                <a href="#" onclick="showMarketplace()" class="nav-item" id="nav-marketplace">
+                    <i class="fas fa-store"></i>
+                    <span>Marketplace</span>
+                </a>
+                <div class="pt-4 border-t border-gray-200 dark:border-gray-700 mt-4">
+                    <a href="#" onclick="showSettings()" class="nav-item" id="nav-settings">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </a>
+                    <a href="#" onclick="showDocs()" class="nav-item" id="nav-docs">
+                        <i class="fas fa-book"></i>
+                        <span>API Docs</span>
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-8">
+            <!-- Dashboard View -->
+            <div id="dashboard-view" class="view active">
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold mb-2">Welcome to Supabase BaaS Platform</h1>
+                    <p class="text-gray-600 dark:text-gray-400">Manage your Supabase instances and organizations from one place</p>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="stat-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Active Projects</p>
+                                <p class="text-2xl font-bold" id="stat-projects">-</p>
+                            </div>
+                            <div class="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
+                                <i class="fas fa-layer-group text-blue-600 dark:text-blue-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Organizations</p>
+                                <p class="text-2xl font-bold" id="stat-orgs">-</p>
+                            </div>
+                            <div class="p-3 bg-green-100 dark:bg-green-900 rounded-full">
+                                <i class="fas fa-building text-green-600 dark:text-green-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600 dark:text-gray-400">API Requests</p>
+                                <p class="text-2xl font-bold" id="stat-requests">-</p>
+                            </div>
+                            <div class="p-3 bg-yellow-100 dark:bg-yellow-900 rounded-full">
+                                <i class="fas fa-chart-line text-yellow-600 dark:text-yellow-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600 dark:text-gray-400">System Status</p>
+                                <p class="text-2xl font-bold text-green-600" id="stat-status">Healthy</p>
+                            </div>
+                            <div class="p-3 bg-green-100 dark:bg-green-900 rounded-full">
+                                <i class="fas fa-heartbeat text-green-600 dark:text-green-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity & Quick Actions -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2">
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="text-xl font-semibold">Recent Projects</h2>
+                            </div>
+                            <div class="card-body">
+                                <div id="recent-projects">
+                                    <p class="text-gray-500 dark:text-gray-400 text-center py-8">No projects yet. Create your first project to get started!</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="text-xl font-semibold">Quick Actions</h2>
+                            </div>
+                            <div class="card-body space-y-4">
+                                <button onclick="createProjectModal()" class="w-full btn btn-primary">
+                                    <i class="fas fa-plus mr-2"></i>New Project
+                                </button>
+                                <button onclick="createOrgModal()" class="w-full btn btn-secondary">
+                                    <i class="fas fa-building mr-2"></i>New Organization
+                                </button>
+                                <button onclick="showProjects()" class="w-full btn btn-outline">
+                                    <i class="fas fa-list mr-2"></i>View All Projects
+                                </button>
+                                <button onclick="openStudio()" class="w-full btn btn-outline">
+                                    <i class="fas fa-external-link-alt mr-2"></i>Open Studio
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="card mt-6">
+                            <div class="card-header">
+                                <h2 class="text-xl font-semibold">Service Status</h2>
+                            </div>
+                            <div class="card-body space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <span>Control API</span>
+                                    <span class="status-badge" id="status-control">Checking...</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span>Billing API</span>
+                                    <span class="status-badge" id="status-billing">Checking...</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span>Marketplace API</span>
+                                    <span class="status-badge" id="status-marketplace">Checking...</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span>Supabase Studio</span>
+                                    <span class="status-badge" id="status-studio">Checking...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Projects View -->
+            <div id="projects-view" class="view">
+                <div class="mb-8 flex justify-between items-center">
+                    <div>
+                        <h1 class="text-3xl font-bold mb-2">Projects</h1>
+                        <p class="text-gray-600 dark:text-gray-400">Manage your Supabase project instances</p>
+                    </div>
+                    <button onclick="createProjectModal()" class="btn btn-primary">
+                        <i class="fas fa-plus mr-2"></i>New Project
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <div id="projects-list">
+                            <div class="text-center py-12">
+                                <i class="fas fa-layer-group text-6xl text-gray-300 dark:text-gray-600 mb-4"></i>
+                                <h3 class="text-xl font-semibold mb-2">No projects yet</h3>
+                                <p class="text-gray-500 dark:text-gray-400 mb-4">Create your first Supabase project to get started</p>
+                                <button onclick="createProjectModal()" class="btn btn-primary">
+                                    <i class="fas fa-plus mr-2"></i>Create Project
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Organizations View -->
+            <div id="organizations-view" class="view">
+                <div class="mb-8 flex justify-between items-center">
+                    <div>
+                        <h1 class="text-3xl font-bold mb-2">Organizations</h1>
+                        <p class="text-gray-600 dark:text-gray-400">Manage your organizations and teams</p>
+                    </div>
+                    <button onclick="createOrgModal()" class="btn btn-primary">
+                        <i class="fas fa-plus mr-2"></i>New Organization
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <div id="organizations-list">
+                            <div class="text-center py-12">
+                                <i class="fas fa-building text-6xl text-gray-300 dark:text-gray-600 mb-4"></i>
+                                <h3 class="text-xl font-semibold mb-2">No organizations yet</h3>
+                                <p class="text-gray-500 dark:text-gray-400 mb-4">Create your first organization to get started</p>
+                                <button onclick="createOrgModal()" class="btn btn-primary">
+                                    <i class="fas fa-plus mr-2"></i>Create Organization
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Other Views (placeholder) -->
+            <div id="billing-view" class="view">
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold mb-2">Billing & Usage</h1>
+                    <p class="text-gray-600 dark:text-gray-400">Monitor usage and manage billing</p>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <p class="text-center text-gray-500 dark:text-gray-400 py-8">Billing dashboard coming soon...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="marketplace-view" class="view">
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold mb-2">Template Marketplace</h1>
+                    <p class="text-gray-600 dark:text-gray-400">Discover and install project templates</p>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <p class="text-center text-gray-500 dark:text-gray-400 py-8">Marketplace coming soon...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="settings-view" class="view">
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold mb-2">Settings</h1>
+                    <p class="text-gray-600 dark:text-gray-400">Platform configuration</p>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <p class="text-center text-gray-500 dark:text-gray-400 py-8">Settings panel coming soon...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="docs-view" class="view">
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold mb-2">API Documentation</h1>
+                    <p class="text-gray-600 dark:text-gray-400">Learn how to use the BaaS APIs</p>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="text-xl font-semibold">Control API</h2>
+                            <span class="text-sm text-gray-500">:3001</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="space-y-4">
+                                <div class="api-endpoint">
+                                    <div class="method-badge method-post">POST</div>
+                                    <div class="endpoint-path">/api/organizations</div>
+                                    <div class="endpoint-desc">Create organization</div>
+                                </div>
+                                <div class="api-endpoint">
+                                    <div class="method-badge method-get">GET</div>
+                                    <div class="endpoint-path">/api/organizations</div>
+                                    <div class="endpoint-desc">List organizations</div>
+                                </div>
+                                <div class="api-endpoint">
+                                    <div class="method-badge method-post">POST</div>
+                                    <div class="endpoint-path">/api/organizations/:id/projects</div>
+                                    <div class="endpoint-desc">Create project</div>
+                                </div>
+                                <div class="api-endpoint">
+                                    <div class="method-badge method-get">GET</div>
+                                    <div class="endpoint-path">/api/organizations/:id/projects</div>
+                                    <div class="endpoint-desc">List projects</div>
+                                </div>
+                            </div>
+                            <a href="http://82.25.69.57:3001" target="_blank" class="btn btn-outline mt-4 w-full">
+                                <i class="fas fa-external-link-alt mr-2"></i>Open API
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="text-xl font-semibold">Billing API</h2>
+                            <span class="text-sm text-gray-500">:3002</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="space-y-4">
+                                <div class="api-endpoint">
+                                    <div class="method-badge method-get">GET</div>
+                                    <div class="endpoint-path">/api/plans</div>
+                                    <div class="endpoint-desc">List billing plans</div>
+                                </div>
+                                <div class="api-endpoint">
+                                    <div class="method-badge method-get">GET</div>
+                                    <div class="endpoint-path">/api/subscription</div>
+                                    <div class="endpoint-desc">Get subscription</div>
+                                </div>
+                                <div class="api-endpoint">
+                                    <div class="method-badge method-post">POST</div>
+                                    <div class="endpoint-path">/api/subscribe</div>
+                                    <div class="endpoint-desc">Create subscription</div>
+                                </div>
+                            </div>
+                            <a href="http://82.25.69.57:3002" target="_blank" class="btn btn-outline mt-4 w-full">
+                                <i class="fas fa-external-link-alt mr-2"></i>Open API
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="text-xl font-semibold">Marketplace API</h2>
+                            <span class="text-sm text-gray-500">:3003</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="space-y-4">
+                                <div class="api-endpoint">
+                                    <div class="method-badge method-get">GET</div>
+                                    <div class="endpoint-path">/api/templates</div>
+                                    <div class="endpoint-desc">List templates</div>
+                                </div>
+                                <div class="api-endpoint">
+                                    <div class="method-badge method-get">GET</div>
+                                    <div class="endpoint-path">/api/categories</div>
+                                    <div class="endpoint-desc">List categories</div>
+                                </div>
+                                <div class="api-endpoint">
+                                    <div class="method-badge method-post">POST</div>
+                                    <div class="endpoint-path">/api/templates/:id/install</div>
+                                    <div class="endpoint-desc">Install template</div>
+                                </div>
+                            </div>
+                            <a href="http://82.25.69.57:3003" target="_blank" class="btn btn-outline mt-4 w-full">
+                                <i class="fas fa-external-link-alt mr-2"></i>Open API
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="text-xl font-semibold">Supabase Studio</h2>
+                            <span class="text-sm text-gray-500">:3000</span>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-gray-600 dark:text-gray-400 mb-4">Standard Supabase Studio interface for database management, authentication, storage, and more.</p>
+                            <a href="http://82.25.69.57:3000" target="_blank" class="btn btn-primary w-full">
+                                <i class="fas fa-external-link-alt mr-2"></i>Open Studio
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-overlay" class="modal-overlay" onclick="closeModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="modal-title">Create Project</h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Modal content will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .nav-item {
+            @apply flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-colors;
+        }
+        .nav-item.active {
+            @apply bg-supabase bg-opacity-10 text-supabase;
+        }
+        .view {
+            @apply hidden;
+        }
+        .view.active {
+            @apply block;
+        }
+        .stat-card {
+            @apply bg-white dark:bg-supabase-gray rounded-lg p-6 border border-gray-200 dark:border-gray-800;
+        }
+        .card {
+            @apply bg-white dark:bg-supabase-gray rounded-lg border border-gray-200 dark:border-gray-800;
+        }
+        .card-header {
+            @apply px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between;
+        }
+        .card-body {
+            @apply p-6;
+        }
+        .btn {
+            @apply inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors;
+        }
+        .btn-primary {
+            @apply text-white bg-supabase hover:bg-green-600 focus:ring-supabase;
+        }
+        .btn-secondary {
+            @apply text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600;
+        }
+        .btn-outline {
+            @apply text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800;
+        }
+        .status-badge {
+            @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+        }
+        .status-online {
+            @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
+        }
+        .status-offline {
+            @apply bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200;
+        }
+        .status-checking {
+            @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200;
+        }
+        .modal-overlay {
+            @apply fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden;
+        }
+        .modal {
+            @apply bg-white dark:bg-supabase-gray rounded-lg shadow-xl max-w-md w-full mx-4;
+        }
+        .modal-header {
+            @apply flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700;
+        }
+        .modal-body {
+            @apply p-6;
+        }
+        .api-endpoint {
+            @apply flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg;
+        }
+        .method-badge {
+            @apply px-2 py-1 text-xs font-semibold rounded;
+        }
+        .method-get {
+            @apply bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200;
+        }
+        .method-post {
+            @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
+        }
+        .endpoint-path {
+            @apply font-mono text-sm flex-1;
+        }
+        .endpoint-desc {
+            @apply text-sm text-gray-600 dark:text-gray-400;
+        }
+    </style>
+
+    <script src="app.js"></script>
+</body>
+</html>

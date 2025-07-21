@@ -96,6 +96,25 @@ app.use(express.json({ limit: '10mb' }));
 // Serve static files
 app.use('/uploads', express.static(UPLOADS_DIR));
 
+// Root endpoint
+app.get('/', (req, res) => {
+    res.json({
+        name: 'Supabase Marketplace API',
+        version: '1.0.0',
+        description: 'Sistema de marketplace de templates para BaaS Supabase',
+        endpoints: {
+            health: '/health',
+            categories: '/api/categories', 
+            templates: '/api/templates',
+            templates_detail: '/api/templates/:templateId',
+            templates_download: '/api/templates/:templateId/download',
+            templates_install: '/api/templates/:templateId/install'
+        },
+        status: 'running',
+        timestamp: new Date().toISOString()
+    });
+});
+
 // Health check
 app.get('/health', (req, res) => {
     res.json({ 

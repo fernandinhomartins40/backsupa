@@ -17,7 +17,7 @@ const rateLimit = require('express-rate-limit');
 
 // Importar módulos locais (com fallbacks)
 const logger = console; // Fallback para console se logger não existir
-// const { connectDB, closeDB } = require('./src/config/database'); // Comentado temporariamente
+const { connectDB, closeDB } = require('./src/config/database');
 const routes = require('./src/routes');
 
 // Configurações
@@ -182,9 +182,9 @@ let server;
 
 async function startServer() {
   try {
-    // Conectar ao banco de dados (skip por agora)
-    // await connectDB();
-    console.log('Database connection skipped for demo');
+    // Conectar ao banco de dados
+    await connectDB();
+    console.log('Database connection established');
     
     // Iniciar servidor
     server = app.listen(PORT, HOST, () => {

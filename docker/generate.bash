@@ -199,6 +199,13 @@ if [ -d "volumes/db/" ]; then
   cp -a volumes/db/. "$INSTANCE_DIR/volumes/db/"
 fi
 
+# Configure instance-specific database initialization
+if [ -f "$INSTANCE_DIR/volumes/db/init/data.sql" ]; then
+  # Replace placeholders in data.sql with actual values
+  envsubst < "$INSTANCE_DIR/volumes/db/init/data.sql" > "$INSTANCE_DIR/volumes/db/init/data_processed.sql"
+  mv "$INSTANCE_DIR/volumes/db/init/data_processed.sql" "$INSTANCE_DIR/volumes/db/init/data.sql"
+fi
+
 if [ -d "volumes/functions/" ]; then
   cp -a volumes/functions/. "$INSTANCE_DIR/volumes/functions/"
 fi
